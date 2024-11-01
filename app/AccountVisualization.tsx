@@ -1,15 +1,8 @@
 // AccountVisualization.tsx
 import { Card, CardContent } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
-
-interface Account {
-  pubkey: string;
-  size: number;
-  executable: boolean;
-  owner: string;
-  balance: number;
-  program?: string;
-}
+import DataCharts from './components/DataCharts';
+import { Account } from './types';
 
 interface AccountVisualizationProps {
   accounts: Account[];
@@ -26,6 +19,8 @@ export default function AccountVisualization({
 }: AccountVisualizationProps) {
   return (
     <div className="space-y-4">
+      <DataCharts accounts={accounts} cpiCalls={[]} />
+      
       {accounts.map((account, index) => (
         <Card key={index}>
           <CardContent className="p-4">

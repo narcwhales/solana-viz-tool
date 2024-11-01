@@ -260,11 +260,12 @@ export default function SolanaVizTool() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex space-x-2 mb-4">
+          <div className="grid grid-cols-2 gap-3 md:flex space-x-2 mb-4">
             <Input
               placeholder="Enter Program ID"
               value={programId}
               onChange={(e) => setProgramId(e.target.value)}
+              className="col-span-2 md:col-span-1"
             />
             <select 
               value={network} 
@@ -300,7 +301,7 @@ export default function SolanaVizTool() {
           <Alert className="mb-4">
             <AlertDescription>
               <strong>Program Type Guidance:</strong>
-              <ul className="list-disc pl-4 mt-2">
+              <ul className="list-disc pl-4 mt-2 break-words">
                 <li>Standard programs: Use any custom program ID</li>
                 <li>System Program (11111111111111111111111111111111): Limited account data available</li>
                 <li>Token Program (TokenkegQ...): Shows recent token account activity</li>
