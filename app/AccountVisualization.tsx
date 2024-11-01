@@ -1,29 +1,71 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// AccountVisualization.tsx
+import { Card, CardContent } from "@/components/ui/card"
+import { Button } from "@/components/ui/button"
 
 interface Account {
-  name: string;
+  pubkey: string;
   size: number;
-  type: string;
+  executable: boolean;
+  owner: string;
+  balance: number;
+  program?: string;
 }
 
-export default function AccountVisualization({ accounts }: { accounts: Account[] }) {
+interface AccountVisualizationProps {
+  accounts: Account[];
+  hasMore: boolean;
+  onLoadMore?: () => void;
+  loading?: boolean;
+}
+
+export default function AccountVisualization({ 
+  accounts, 
+  hasMore, 
+  onLoadMore,
+  loading 
+}: AccountVisualizationProps) {
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+    <div className="space-y-4">
       {accounts.map((account, index) => (
         <Card key={index}>
-          <CardHeader>
-            <CardTitle>{account.name}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>Size: {account.size} bytes</p>
-            <p>Type: {account.type}</p>
-            <div 
-              className="mt-2 bg-blue-200 dark:bg-blue-800" 
-              style={{ height: '20px', width: `${(account.size / 2048) * 100}%` }}
-            ></div>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium">Public Key</p>
+                <p className="text-xs truncate">{account.pubkey}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Size</p>
+                <p className="text-xs">{account.size} bytes</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Owner</p>
+                <p className="text-xs truncate">{account.owner}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Balance</p>
+                <p className="text-xs">{account.balance / 1e9} SOL</p>
+              </div>
+              {account.program && (
+                <div className="col-span-2">
+                  <p className="text-sm font-medium">Program Type</p>
+                  <p className="text-xs">{account.program}</p>
+                </div>
+              )}
+            </div>
           </CardContent>
         </Card>
       ))}
+      
+      {hasMore && onLoadMore && (
+        <Button 
+          onClick={onLoadMore} 
+          disabled={loading}
+          className="w-full mt-4"
+        >
+          {loading ? 'Loading More...' : 'Load More Accounts'}
+        </Button>
+      )}
     </div>
   )
 }

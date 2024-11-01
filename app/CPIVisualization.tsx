@@ -1,25 +1,50 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { ArrowRight } from "lucide-react"
+// CPIVisualization.tsx
+import { Card, CardContent } from "@/components/ui/card"
+import { Alert, AlertDescription } from "@/components/ui/alert"
 
-export default function CPIVisualization({ cpiCalls }: { cpiCalls: Array<{
+interface CPICall {
   from: string;
   to: string;
-  data: string;
-}> }) {
+  programId: string;
+  date: string;
+}
+
+interface CPIVisualizationProps {
+  cpiCalls: CPICall[];
+}
+
+export default function CPIVisualization({ cpiCalls }: CPIVisualizationProps) {
+  if (cpiCalls.length === 0) {
+    return (
+      <Alert>
+        <AlertDescription>No recent CPI calls found for this program</AlertDescription>
+      </Alert>
+    );
+  }
+
   return (
     <div className="space-y-4">
       {cpiCalls.map((call, index) => (
         <Card key={index}>
-          <CardHeader>
-            <CardTitle>CPI Call {index + 1}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center space-x-2">
-              <div className="font-semibold">{call.from}</div>
-              <ArrowRight className="w-4 h-4" />
-              <div className="font-semibold">{call.to}</div>
+          <CardContent className="p-4">
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <p className="text-sm font-medium">From</p>
+                <p className="text-xs truncate">{call.from}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">To</p>
+                <p className="text-xs truncate">{call.to}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Program ID</p>
+                <p className="text-xs truncate">{call.programId}</p>
+              </div>
+              <div>
+                <p className="text-sm font-medium">Date</p>
+                <p className="text-xs">{call.date}</p>
+              </div>
             </div>
-            <p className="mt-2">Data: {call.data}</p>
           </CardContent>
         </Card>
       ))}

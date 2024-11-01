@@ -1,3 +1,4 @@
+"use client"
 import SolanaVizTool from './solana-viz-tool'
 
 export default function Home() {

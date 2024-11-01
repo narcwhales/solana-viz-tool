@@ -1,20 +1,23 @@
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
+// StepByStepGuide.tsx
+import { Card, CardContent } from "@/components/ui/card"
 
 interface Step {
   title: string;
   description: string;
 }
 
-export default function StepByStepGuide({ steps }: { steps: Step[] }) {
+interface StepByStepGuideProps {
+  steps: Step[];
+}
+
+export default function StepByStepGuide({ steps }: StepByStepGuideProps) {
   return (
     <div className="space-y-4">
       {steps.map((step, index) => (
         <Card key={index}>
-          <CardHeader>
-            <CardTitle>Step {index + 1}: {step.title}</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p>{step.description}</p>
+          <CardContent className="p-4">
+            <h3 className="font-medium mb-2">{step.title}</h3>
+            <p className="text-sm text-gray-600">{step.description}</p>
           </CardContent>
         </Card>
       ))}

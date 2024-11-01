@@ -1,113 +1,210 @@
-"use client"
-
+// SolanaVizTool.tsx
 import { useState } from 'react';
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Loader2 } from "lucide-react";
-import { Cluster, Connection, PublicKey, clusterApiUrl, ParsedInstruction, PartiallyDecodedInstruction } from "@solana/web3.js";
+import { Loader2, AlertCircle } from "lucide-react";
+import { 
+  Cluster, 
+  Connection, 
+  PublicKey, 
+  clusterApiUrl, 
+  ParsedInstruction, 
+  PartiallyDecodedInstruction,
+  GetProgramAccountsFilter
+} from "@solana/web3.js";
+import AccountVisualization from './AccountVisualization';
+import CPIVisualization from './CPIVisualization';
+import StepByStepGuide from './StepByStepGuide';
+import { Account, CPICall, VisualizationData, SPECIAL_PROGRAMS } from './types';
 
-interface Account {
-  pubkey: string;
-  size: number;
-  executable: boolean;
-  owner: string;
-  balance: number;
-}
-
-interface CPICall {
-  from: string;
-  to: string;
-  programId: string;
-  date: string;
-}
-
-interface VisualizationData {
-  accounts: Account[];
-  cpiCalls: CPICall[];
-  steps: Array<{ title: string; description: string }>;
-}
-
-export default function Dashboard() {
+export default function SolanaVizTool() {
   const [programId, setProgramId] = useState('');
   const [network, setNetwork] = useState('devnet');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [visualizationData, setVisualizationData] = useState<VisualizationData | null>(null);
+  const [accountsOffset, setAccountsOffset] = useState(0);
+  const [minSize,] = useState(0);
+  const [allAccounts, setAllAccounts] = useState<Account[]>([]);
+  const ACCOUNTS_PER_PAGE = 20;
 
-  const fetchProgramAccounts = async (connection: Connection, publicKey: PublicKey) => {
-    const accounts = await connection.getProgramAccounts(publicKey, {
-      commitment: 'confirmed',
-    });
+  const getTokenProgramInfo = async (connection: Connection) => {
+    try {
+      // Get recent signatures for the token program
+      const signatures = await connection.getSignaturesForAddress(
+        new PublicKey(SPECIAL_PROGRAMS.TOKEN_PROGRAM),
+        { limit: 10 }
+      );
 
-    return accounts.map(account => ({
-      pubkey: account.pubkey.toString(),
-      size: account.account.data.length,
-      executable: account.account.executable,
-      owner: account.account.owner.toString(),
-      balance: account.account.lamports
-    }));
-  };
+      // Get unique accounts from recent transactions
+      const uniqueAccounts = new Set<string>();
+      const accounts: Account[] = [];
 
-  const fetchRecentTransactions = async (connection: Connection, publicKey: PublicKey) => {
-    const signatures = await connection.getSignaturesForAddress(publicKey, {
-      limit: 10,
-    });
-
-    const transactions = await Promise.all(
-      signatures.map(async (sig) => {
+      for (const sig of signatures) {
         const tx = await connection.getParsedTransaction(sig.signature, {
           maxSupportedTransactionVersion: 0,
         });
-        return tx;
-      })
-    );
 
-    const cpiCalls: CPICall[] = [];
+        if (!tx) continue;
+
+        tx.transaction.message.accountKeys.forEach(account => {
+          if (!uniqueAccounts.has(account.pubkey.toString())) {
+            uniqueAccounts.add(account.pubkey.toString());
+            accounts.push({
+              pubkey: account.pubkey.toString(),
+              size: 165, // Standard token account size
+              executable: false,
+              owner: SPECIAL_PROGRAMS.TOKEN_PROGRAM,
+              balance: 0,
+              program: 'Token Account'
+            });
+          }
+        });
+      }
+
+      // Get account info for the collected accounts
+      const accountInfos = await Promise.all(
+        accounts.map(async (account) => {
+          try {
+            const info = await connection.getAccountInfo(new PublicKey(account.pubkey));
+            if (info) {
+              account.balance = info.lamports;
+              account.size = info.data.length;
+            }
+            return account;
+          } catch (e) {
+            console.log(e)
+            return account;
+          }
+        })
+      );
+
+      return {
+        accounts: accountInfos,
+        hasMore: false,
+        total: accountInfos.length,
+        programType: 'Token Program'
+      };
+    } catch (error) {
+      console.error('Error fetching token program info:', error);
+      throw new Error('Failed to fetch token program information');
+    }
+  };
+
+  const fetchProgramAccounts = async (connection: Connection, publicKey: PublicKey) => {
+    // Check if this is a special program that needs alternative handling
+    if (publicKey.toString() === SPECIAL_PROGRAMS.TOKEN_PROGRAM) {
+      return getTokenProgramInfo(connection);
+    }
+
+    const filters: GetProgramAccountsFilter[] = [];
     
-    transactions.forEach(tx => {
-      if (!tx) return;
-      
-      tx.transaction.message.instructions.forEach((ix: ParsedInstruction | PartiallyDecodedInstruction) => {
-        if ('programId' in ix) {
-          cpiCalls.push({
-            from: tx.transaction.message.accountKeys[0].pubkey.toString(),
-            to: ix.programId.toString(),
-            programId: ix.programId.toString(),
-            date: new Date(tx.blockTime! * 1000).toLocaleString(),
-          });
-        }
+    if (minSize > 0) {
+      filters.push({
+        dataSize: minSize,
       });
-    });
+    }
 
-    return cpiCalls;
+    try {
+      const rawAccounts = await connection.getProgramAccounts(publicKey, {
+        commitment: 'confirmed',
+        filters,
+      });
+
+      const accounts = rawAccounts.map(account => ({
+        pubkey: account.pubkey.toString(),
+        size: account.account.data.length,
+        executable: account.account.executable,
+        owner: account.account.owner.toString(),
+        balance: account.account.lamports
+      }));
+
+      setAllAccounts(accounts);
+
+      const paginatedAccounts = accounts.slice(0, ACCOUNTS_PER_PAGE);
+
+      return {
+        accounts: paginatedAccounts,
+        hasMore: ACCOUNTS_PER_PAGE < accounts.length,
+        total: accounts.length,
+        programType: 'Standard Program'
+      };
+    } catch (error: unknown) {
+      console.error('Error fetching accounts:', error);
+      
+      if (error instanceof Error && error.message?.includes('excluded from account secondary indexes')) {
+        throw new Error(
+          'This program is excluded from account indexing. Try using a different program or check the program type guidance below.'
+        );
+      }
+      
+      throw new Error('Failed to fetch program accounts. Try adjusting filters or using a different program.');
+    }
+  };
+
+  const fetchRecentTransactions = async (connection: Connection, publicKey: PublicKey) => {
+    try {
+      const signatures = await connection.getSignaturesForAddress(publicKey, {
+        limit: 5,
+      });
+
+      const transactions = await Promise.all(
+        signatures.map(async (sig) => {
+          const tx = await connection.getParsedTransaction(sig.signature, {
+            maxSupportedTransactionVersion: 0,
+          });
+          return tx;
+        })
+      );
+
+      const cpiCalls: CPICall[] = [];
+      
+      transactions.forEach(tx => {
+        if (!tx) return;
+        
+        tx.transaction.message.instructions.forEach((ix: ParsedInstruction | PartiallyDecodedInstruction) => {
+          if ('programId' in ix) {
+            cpiCalls.push({
+              from: tx.transaction.message.accountKeys[0].pubkey.toString(),
+              to: ix.programId.toString(),
+              programId: ix.programId.toString(),
+              date: new Date(tx.blockTime! * 1000).toLocaleString(),
+            });
+          }
+        });
+      });
+
+      return cpiCalls;
+    } catch (error) {
+      console.error('Error fetching transactions:', error);
+      return [];
+    }
   };
 
   const handleVisualize = async () => {
     setLoading(true);
     setError('');
+    setAccountsOffset(0);
+    setAllAccounts([]);
     
     try {
       const connection = new Connection(clusterApiUrl(network as Cluster));
       const publicKey = new PublicKey(programId);
 
-      // Fetch program accounts
-      const accounts = await fetchProgramAccounts(connection, publicKey);
-      
-      // Fetch recent transactions and CPI calls
+      const { accounts, hasMore, total, programType } = await fetchProgramAccounts(connection, publicKey);
       const cpiCalls = await fetchRecentTransactions(connection, publicKey);
 
-      // Generate visualization steps based on the data
       const steps = [
         {
           title: 'Program Overview',
-          description: `Program has ${accounts.length} associated accounts and ${cpiCalls.length} recent CPI calls`
+          description: `${programType || 'Program'} showing ${accounts.length} of ${total} accounts and ${cpiCalls.length} recent CPI calls`
         },
         {
           title: 'Account Analysis',
-          description: `Total storage used: ${accounts.reduce((acc, curr) => acc + curr.size, 0)} bytes`
+          description: `Total accounts: ${total}, Storage used by displayed accounts: ${accounts.reduce((acc, curr) => acc + curr.size, 0)} bytes`
         },
         {
           title: 'Program Activity',
@@ -118,7 +215,10 @@ export default function Dashboard() {
       setVisualizationData({
         accounts,
         cpiCalls,
-        steps
+        steps,
+        hasMoreAccounts: hasMore,
+        totalAccounts: total,
+        programType
       });
     } catch (error) {
       console.error('Error fetching data:', error);
@@ -128,63 +228,27 @@ export default function Dashboard() {
     }
   };
 
-  const AccountVisualization = ({ accounts }: { accounts: Account[] }) => (
-    <div className="space-y-4">
-      {accounts.map((account, index) => (
-        <Card key={index}>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium">Public Key</p>
-                <p className="text-xs truncate">{account.pubkey}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Size</p>
-                <p className="text-xs">{account.size} bytes</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Owner</p>
-                <p className="text-xs truncate">{account.owner}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Balance</p>
-                <p className="text-xs">{account.balance / 1e9} SOL</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+  const loadMoreAccounts = () => {
+    if (!visualizationData || loading) return;
+    
+    const newOffset = accountsOffset + ACCOUNTS_PER_PAGE;
+    const nextAccounts = allAccounts.slice(newOffset, newOffset + ACCOUNTS_PER_PAGE);
+    
+    setAccountsOffset(newOffset);
+    setVisualizationData(prev => {
+      if (!prev) return null;
+      return {
+        ...prev,
+        accounts: [...prev.accounts, ...nextAccounts],
+        hasMoreAccounts: newOffset + ACCOUNTS_PER_PAGE < allAccounts.length
+      };
+    });
+  };
 
-  const CPIVisualization = ({ cpiCalls }: { cpiCalls: CPICall[] }) => (
-    <div className="space-y-4">
-      {cpiCalls.map((call, index) => (
-        <Card key={index}>
-          <CardContent className="p-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <p className="text-sm font-medium">From</p>
-                <p className="text-xs truncate">{call.from}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">To</p>
-                <p className="text-xs truncate">{call.to}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Program ID</p>
-                <p className="text-xs truncate">{call.programId}</p>
-              </div>
-              <div>
-                <p className="text-sm font-medium">Date</p>
-                <p className="text-xs">{call.date}</p>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-      ))}
-    </div>
-  );
+  // const handleFilterChange = () => {
+  //   setAccountsOffset(0);
+  //   handleVisualize();
+  // };
 
   return (
     <div className="container mx-auto p-4">
@@ -228,9 +292,22 @@ export default function Dashboard() {
 
           {error && (
             <Alert variant="destructive" className="mb-4">
+              <AlertCircle className="h-4 w-4" />
               <AlertDescription>{error}</AlertDescription>
             </Alert>
           )}
+
+          <Alert className="mb-4">
+            <AlertDescription>
+              <strong>Program Type Guidance:</strong>
+              <ul className="list-disc pl-4 mt-2">
+                <li>Standard programs: Use any custom program ID</li>
+                <li>System Program (11111111111111111111111111111111): Limited account data available</li>
+                <li>Token Program (TokenkegQ...): Shows recent token account activity</li>
+                <li>Other SPL programs: May have indexing limitations</li>
+              </ul>
+            </AlertDescription>
+          </Alert>
 
           {visualizationData && (
             <Tabs defaultValue="accounts">
@@ -240,22 +317,18 @@ export default function Dashboard() {
                 <TabsTrigger value="guide">Analysis</TabsTrigger>
               </TabsList>
               <TabsContent value="accounts">
-                <AccountVisualization accounts={visualizationData.accounts} />
+                <AccountVisualization 
+                  accounts={visualizationData.accounts} 
+                  hasMore={visualizationData.hasMoreAccounts} 
+                  onLoadMore={loadMoreAccounts}
+                  loading={loading}
+                />
               </TabsContent>
               <TabsContent value="cpi">
                 <CPIVisualization cpiCalls={visualizationData.cpiCalls} />
               </TabsContent>
               <TabsContent value="guide">
-                <div className="space-y-4">
-                  {visualizationData.steps.map((step, index) => (
-                    <Card key={index}>
-                      <CardContent className="p-4">
-                        <h3 className="font-medium mb-2">{step.title}</h3>
-                        <p className="text-sm text-gray-600">{step.description}</p>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
+                <StepByStepGuide steps={visualizationData.steps} />
               </TabsContent>
             </Tabs>
           )}
