@@ -1,4 +1,4 @@
-import { Account, CPICall } from '../types';
+import { Account } from '../types';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recharts';
 
