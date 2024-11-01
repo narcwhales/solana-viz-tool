@@ -4,10 +4,19 @@ import { ResponsiveContainer, PieChart, Pie, Cell, Tooltip, Legend } from 'recha
 
 interface DataChartsProps {
   accounts: Account[];
-  cpiCalls: CPICall[];
 }
 
-// Define a consistent color palette that matches your theme
+// Define proper types for the label renderer
+interface CustomizedLabelProps {
+  cx: number;
+  cy: number;
+  midAngle: number;
+  innerRadius: number;
+  outerRadius: number;
+  percent: number;
+  name: string;
+}
+
 const COLORS = [
   'hsl(var(--primary))',
   'hsl(var(--secondary))',
@@ -20,7 +29,16 @@ const COLORS = [
 ];
 
 const RADIAN = Math.PI / 180;
-const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, percent, name }: any) => {
+
+const renderCustomizedLabel = ({ 
+  cx, 
+  cy, 
+  midAngle, 
+  innerRadius, 
+  outerRadius, 
+  percent, 
+  name 
+}: CustomizedLabelProps) => {
   const radius = innerRadius + (outerRadius - innerRadius) * 0.5;
   const x = cx + radius * Math.cos(-midAngle * RADIAN);
   const y = cy + radius * Math.sin(-midAngle * RADIAN);
@@ -39,7 +57,7 @@ const renderCustomizedLabel = ({ cx, cy, midAngle, innerRadius, outerRadius, per
   );
 };
 
-export default function DataCharts({ accounts, cpiCalls }: DataChartsProps) {
+export default function DataCharts({ accounts }: DataChartsProps) {
   // Prepare account size distribution data
   const sizeRanges = accounts.reduce((acc: { [key: string]: number }, account) => {
     let range;

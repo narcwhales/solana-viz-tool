@@ -19,7 +19,7 @@ export default function AccountVisualization({
 }: AccountVisualizationProps) {
   return (
     <div className="space-y-4">
-      <DataCharts accounts={accounts} cpiCalls={[]} />
+      <DataCharts accounts={accounts} />
       
       {accounts.map((account, index) => (
         <Card key={index}>
